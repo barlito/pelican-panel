@@ -1,0 +1,84 @@
+services:
+  panel:
+    image: ghcr.io/pelican/panel:latest
+    environment:
+      APP_URL: "https://${PANEL_DOMAIN}"
+      APP_ENV: "production"
+      APP_DEBUG: "false"
+      APP_TIMEZONE: "${TZ}"
+      # TLS is terminated by traefik-base, the embedded Caddy serves plain HTTP on :80
+      BEHIND_PROXY: "true"
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES}"
+      XDG_DATA_HOME: /pelican-data
+      MAIL_DRIVER: "log"
+    volumes:
+      - ./pelican-data:/pelican-data
+      - ./pelican-logs:/var/www/html/storage/logs
+      - ./pelican-data/plugins:/var/www/html/plugins
+    networks:
+      - traefik_traefik_proxy
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+
+        - traefik.http.services.pelican-panel.loadbalancer.server.port=80
+
+        # Panel has its own auth (accounts + 2FA) so friends can log in
+        # without an Authelia account — only security headers here.
+        - traefik.http.routers.pelican-panel-secure.rule=Host(`${PANEL_DOMAIN}`)
+        - traefik.http.routers.pelican-panel-secure.tls=true
+        - traefik.http.routers.pelican-panel-secure.entrypoints=https
+        - traefik.http.routers.pelican-panel-secure.tls.certresolver=letsencrypt
+        - traefik.http.routers.pelican-panel-secure.middlewares=security-headers@file
+
+  wings:
+    image: ghcr.io/pelican/wings:latest
+    tty: true
+    environment:
+      TZ: "${TZ}"
+      WINGS_UID: 988
+      WINGS_GID: 988
+      WINGS_USERNAME: pelican
+    volumes:
+      # Wings drives the HOST docker daemon: game servers run as sibling
+      # containers, so /var/lib/pelican and /tmp/pelican MUST be the same
+      # path on the host and in this container (wings passes host paths
+      # to the daemon when creating server bind mounts).
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers/:/var/lib/docker/containers/
+      - /etc/pelican/:/etc/pelican/
+      - /var/lib/pelican/:/var/lib/pelican/
+      - /var/log/pelican/:/var/log/pelican/
+      - /tmp/pelican/:/tmp/pelican/
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    ports:
+      # SFTP access to server files (raw TCP, published directly)
+      - target: 2022
+        published: ${WINGS_SFTP_PORT}
+        protocol: tcp
+        mode: host
+    networks:
+      - traefik_traefik_proxy
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+
+        - traefik.http.services.pelican-wings.loadbalancer.server.port=8080
+
+        # No Authelia here either: the wings API is token-authenticated and
+        # must stay reachable by the panel + the browser websocket console.
+        - traefik.http.routers.pelican-wings-secure.rule=Host(`${WINGS_DOMAIN}`)
+        - traefik.http.routers.pelican-wings-secure.tls=true
+        - traefik.http.routers.pelican-wings-secure.entrypoints=https
+        - traefik.http.routers.pelican-wings-secure.tls.certresolver=letsencrypt
+        - traefik.http.routers.pelican-wings-secure.middlewares=security-headers@file
+
+networks:
+  traefik_traefik_proxy:
+    external: true
