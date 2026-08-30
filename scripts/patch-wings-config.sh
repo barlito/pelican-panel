@@ -11,9 +11,10 @@
 # — i.e. live under the same-path mounts wings/data and wings/tmp.
 #
 # `wings configure` writes the fully-materialized config (every key
-# present with its default value), so this script only rewrites values in
-# place — inserting blocks would create duplicate YAML keys, and wings'
-# parser silently keeps the default one.
+# present with its default value), so this script rewrites values in
+# place — inserting nested blocks would create duplicate YAML keys, and
+# wings' parser silently keeps the default one. Flat keys are re-inserted
+# only if missing (cleanup of older script versions can remove them).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,6 +25,11 @@ if [ ! -f "$CONFIG" ]; then
     exit 1
 fi
 
+# Clean up the duplicate blocks a previous (insert-based) version of this
+# script may have left behind — they shadow the real keys.
+sed -i '/# pelican-panel:managed$/d' "$CONFIG"
+
+# Rewrite the managed values in place.
 awk -v root="$ROOT" '
   /^[a-z]/                { in_passwd=0; in_machine=0 }
   /^  root_directory:/    { print "  root_directory: " root "/wings/data"; next }
@@ -39,8 +45,20 @@ awk -v root="$ROOT" '
   { print }
 ' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
 
-if grep -qE 'directory: /etc/pelican' "$CONFIG"; then
-    echo "❌ patch incomplete: a directory still points to /etc/pelican — check $CONFIG" >&2
+# Flat system keys are safe to (re-)insert when absent — no nesting involved.
+ensure_flat() {
+    grep -qE "^  $1:" "$CONFIG" || sed -i "/^system:/a\\
+  $1: $2" "$CONFIG"
+}
+ensure_flat root_directory "$ROOT/wings/data"
+ensure_flat data "$ROOT/wings/data/volumes"
+ensure_flat archive_directory "$ROOT/wings/data/archives"
+ensure_flat backup_directory "$ROOT/wings/data/backups"
+ensure_flat tmp_directory "$ROOT/wings/tmp"
+ensure_flat log_directory /var/log/pelican
+
+if grep -qE 'directory: /etc/pelican|: /var/lib/pelican' "$CONFIG"; then
+    echo "❌ patch incomplete: a directory still points to a /etc/pelican or /var/lib/pelican default — check $CONFIG" >&2
     exit 1
 fi
 
