@@ -19,13 +19,17 @@ help:
 	@echo "  make wings-configure TOKEN='...' - Configure wings from a panel auto-deploy token"
 	@echo "  make backup               - Backup panel data + game servers data"
 
+# The panel image runs as www-data (uid/gid 82) while the bind-mounted dirs are
+# created here as the invoking user: without the chown the entrypoint can't write
+# /pelican-data/.env nor the supervisord log dir, and the task exits(2) in a loop.
 .PHONY: deploy
 deploy:
 	@if [ ! -f .env ]; then \
 		echo "⚠️  .env not found, creating from example..."; \
 		cp .env.example .env; \
 	fi
-	@mkdir -p panel/data/plugins panel/logs wings/etc wings/logs wings/data wings/tmp
+	@mkdir -p panel/data/plugins panel/logs/supervisord wings/etc wings/logs wings/data wings/tmp
+	@sudo chown -R 82:82 panel/data panel/logs
 	@set -a && . ./.env && set +a && \
 		PELICAN_ROOT=$$(pwd) docker stack deploy -c docker-compose.yaml $(stack_name)
 	@echo "✅ Deployed!"
@@ -62,9 +66,12 @@ artisan:
 # Paste the token command from Admin → Nodes → <node> → Configuration → Auto Deploy,
 # only the arguments: make wings-configure TOKEN="--panel-url https://... --token ... --node 1"
 # The generated config is then patched so all wings data lives under ./wings/.
+# Run in a one-off container: the wings service crash-loops until config.yml
+# exists, so there is no long-lived container to `docker exec` into.
 .PHONY: wings-configure
 wings-configure:
-	docker exec -it $(wings_container_id) wings configure $(TOKEN)
+	docker run --rm -v $(CURDIR)/wings/etc:/etc/pelican \
+		--entrypoint /usr/bin/wings ghcr.io/pelican/wings:latest configure $(TOKEN)
 	sudo ./scripts/patch-wings-config.sh
 	docker service update --force $(stack_name)_wings
 
