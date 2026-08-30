@@ -25,9 +25,9 @@ deploy:
 		echo "⚠️  .env not found, creating from example..."; \
 		cp .env.example .env; \
 	fi
-	@sudo mkdir -p /etc/pelican /var/lib/pelican /var/log/pelican /tmp/pelican
+	@mkdir -p panel/data/plugins panel/logs wings/etc wings/logs wings/data wings/tmp
 	@set -a && . ./.env && set +a && \
-		docker stack deploy -c docker-compose.yaml $(stack_name)
+		PELICAN_ROOT=$$(pwd) docker stack deploy -c docker-compose.yaml $(stack_name)
 	@echo "✅ Deployed!"
 	@echo "🦤 Panel: https://$$(grep ^PANEL_DOMAIN .env | cut -d= -f2)/installer (first run only)"
 
@@ -61,13 +61,15 @@ artisan:
 
 # Paste the token command from Admin → Nodes → <node> → Configuration → Auto Deploy,
 # only the arguments: make wings-configure TOKEN="--panel-url https://... --token ... --node 1"
+# The generated config is then patched so all wings data lives under ./wings/.
 .PHONY: wings-configure
 wings-configure:
 	docker exec -it $(wings_container_id) wings configure $(TOKEN)
+	sudo ./scripts/patch-wings-config.sh
 	docker service update --force $(stack_name)_wings
 
 .PHONY: backup
 backup:
 	@echo "Creating backup..."
-	sudo tar -czf backup-$(shell date +%Y%m%d-%H%M%S).tar.gz pelican-data /etc/pelican /var/lib/pelican
+	sudo tar -czf backup-$(shell date +%Y%m%d-%H%M%S).tar.gz panel wings/etc wings/data
 	@echo "Backup created: backup-$(shell date +%Y%m%d-%H%M%S).tar.gz"

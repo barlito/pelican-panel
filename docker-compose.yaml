@@ -12,9 +12,9 @@ services:
       XDG_DATA_HOME: /pelican-data
       MAIL_DRIVER: "log"
     volumes:
-      - ./pelican-data:/pelican-data
-      - ./pelican-logs:/var/www/html/storage/logs
-      - ./pelican-data/plugins:/var/www/html/plugins
+      - ./panel/data:/pelican-data
+      - ./panel/logs:/var/www/html/storage/logs
+      - ./panel/data/plugins:/var/www/html/plugins
     networks:
       - traefik_traefik_proxy
     deploy:
@@ -44,15 +44,17 @@ services:
       WINGS_USERNAME: pelican
     volumes:
       # Wings drives the HOST docker daemon: game servers run as sibling
-      # containers, so /var/lib/pelican and /tmp/pelican MUST be the same
-      # path on the host and in this container (wings passes host paths
-      # to the daemon when creating server bind mounts).
+      # containers, so the game data + install tmp dirs MUST be the same
+      # absolute path on the host and in this container (wings passes host
+      # paths to the daemon when creating server bind mounts).
+      # PELICAN_ROOT is exported by the Makefile ($(pwd)) so everything
+      # lives under this project directory.
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/containers/:/var/lib/docker/containers/
-      - /etc/pelican/:/etc/pelican/
-      - /var/lib/pelican/:/var/lib/pelican/
-      - /var/log/pelican/:/var/log/pelican/
-      - /tmp/pelican/:/tmp/pelican/
+      - ./wings/etc/:/etc/pelican/
+      - ./wings/logs/:/var/log/pelican/
+      - ${PELICAN_ROOT}/wings/data/:${PELICAN_ROOT}/wings/data/
+      - ${PELICAN_ROOT}/wings/tmp/:${PELICAN_ROOT}/wings/tmp/
       - /etc/ssl/certs:/etc/ssl/certs:ro
     ports:
       # SFTP access to server files (raw TCP, published directly)

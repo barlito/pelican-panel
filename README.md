@@ -24,12 +24,32 @@ Premier serveur hébergé : **ARK: Survival Ascended** (voir plus bas).
 ```
 
 - **panel** : l'UI web (Laravel + Caddy embarqué en HTTP, TLS terminé par Traefik).
-  SQLite par défaut dans `./pelican-data` — largement suffisant ici, migrable vers MariaDB plus tard.
+  SQLite par défaut dans `./panel/data` — largement suffisant ici, migrable vers MariaDB plus tard.
 - **wings** : le daemon qui pilote le **docker du host** via `docker.sock`. Les serveurs de jeux
-  sont des conteneurs *siblings* (pas des enfants), leurs données vivent dans `/var/lib/pelican`.
+  sont des conteneurs *siblings* (pas des enfants), leurs données vivent dans `./wings/data`.
 - La console web du panel se connecte en websocket **directement** à `wings.<domain>` (via Traefik).
 - Pas d'Authelia sur ces routes : le panel a sa propre auth (+ 2FA), l'API wings est authentifiée
   par tokens, et Authelia casserait l'accès des potes + les appels panel → wings.
+
+### Layout — tout vit à la racine du projet
+
+```
+pelican-panel/
+├── panel/
+│   ├── data/    # DB SQLite, avatars, plugins… (XDG_DATA_HOME)
+│   └── logs/
+└── wings/
+    ├── etc/     # config.yml du daemon (générée par le panel, patchée par scripts/)
+    ├── logs/
+    ├── data/    # LES SERVEURS DE JEUX (volumes/, backups/, archives/)
+    └── tmp/     # scripts d'install temporaires
+```
+
+> ⚠️ `wings/data` et `wings/tmp` sont montés au **même chemin absolu** dans le conteneur
+> (`${PELICAN_ROOT}`, exporté par le Makefile) : wings passe des chemins *host* au daemon
+> docker quand il crée les serveurs. C'est pour ça que `make wings-configure` patche la
+> config générée via `scripts/patch-wings-config.sh` — si tu déplaces le projet, relance
+> `sudo ./scripts/patch-wings-config.sh && make deploy`.
 
 ## Prérequis
 
@@ -102,8 +122,8 @@ publiés par les conteneurs wings — pour ASA : `7777/udp` + `7778/udp` (+ `202
 
 ## Backups
 
-- Backups par serveur depuis le panel (onglet **Backups**, stockés par wings).
-- `make backup` : archive complète (panel data + `/etc/pelican` + `/var/lib/pelican`).
+- Backups par serveur depuis le panel (onglet **Backups**, stockés dans `./wings/data/backups`).
+- `make backup` : archive complète (`panel/` + `wings/etc` + `wings/data`).
 
 ## Roadmap
 

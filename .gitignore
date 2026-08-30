@@ -1,4 +1,4 @@
 .env
-pelican-data/
-pelican-logs/
+panel/
+wings/
 backup-*.tar.gz

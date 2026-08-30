@@ -12,4 +12,4 @@ jobs:
       - name: Validate docker-compose.yaml
         run: |
           cp .env.example .env
-          docker compose --env-file .env -f docker-compose.yaml config -q
+          PELICAN_ROOT=$(pwd) docker compose --env-file .env -f docker-compose.yaml config -q
