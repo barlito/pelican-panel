@@ -54,7 +54,7 @@ pelican-panel/
 ## Prérequis
 
 - `traefik-base` déployé (réseau `traefik_traefik_proxy` existant)
-- DNS : `panel.barlito.fr` et `wings.barlito.fr` → IP du host
+- DNS : `panel.youlz.fr` et `wings.youlz.fr` → IP du host
 - RAM : **~11-16 Go libres** pour un serveur ASA (UE5, ça ne rigole pas)
 
 ## Installation
@@ -64,13 +64,13 @@ cp .env.example .env   # adapter les domaines si besoin
 make deploy
 ```
 
-1. Ouvrir `https://panel.barlito.fr/installer` → créer le compte admin (premier run uniquement).
+1. Ouvrir `https://panel.youlz.fr/installer` → créer le compte admin (premier run uniquement).
 2. **Admin → Nodes → Create Node** :
-   - FQDN : `wings.barlito.fr`, communication en **HTTPS**, **Behind Proxy : ON**
+   - FQDN : `wings.youlz.fr`, communication en **HTTPS**, **Behind Proxy : ON**
    - Daemon Port `8080`, SFTP `2022`
 3. Onglet **Configuration** du node → **Auto Deploy** → copier les arguments, puis :
    ```bash
-   make wings-configure TOKEN="--panel-url https://panel.barlito.fr --token XXX --node 1"
+   make wings-configure TOKEN="--panel-url https://panel.youlz.fr --token XXX --node 1"
    ```
 4. Le node doit passer au vert (heartbeat 💚) dans l'admin.
 
