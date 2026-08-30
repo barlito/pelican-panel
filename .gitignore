@@ -1,0 +1,4 @@
+.env
+pelican-data/
+pelican-logs/
+backup-*.tar.gz
